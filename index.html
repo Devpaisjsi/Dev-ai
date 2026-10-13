@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101114">
+  <meta name="description" content="Dev AI — a small, browser-based AI assistant.">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <title>Dev AI</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101114; --panel:#17191e; --panel2:#20232a; --text:#f4f5f7; --muted:#a3a8b3; --accent:#9b8cff; --border:#2b2e36; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; }
+    .app { min-height:100dvh; display:flex; flex-direction:column; max-width:900px; margin:auto; }
+    header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:#101114ee; backdrop-filter:blur(12px); z-index:2; }
+    .logo { width:38px; height:38px; border-radius:13px; display:grid; place-items:center; font-weight:800; background:linear-gradient(135deg,#7867ff,#37c9e8); color:#08090c; }
+    .brand { flex:1; } .brand strong { display:block; font-size:17px; } .brand small { color:var(--muted); }
+    button, select { font:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--border); border-radius:12px; padding:9px 12px; }
+    button { cursor:pointer; } button:disabled { opacity:.5; cursor:wait; }
+    main { flex:1; padding:20px 14px 14px; }
+    #welcome { margin:7vh auto 28px; max-width:600px; text-align:center; }
+    #welcome h1 { font-size:clamp(30px,8vw,46px); line-height:1.12; margin:0 0 12px; letter-spacing:-1.5px; }
+    #welcome p { color:var(--muted); margin:0 auto 20px; max-width:440px; }
+    .suggestions { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; }
+    .suggestions button { font-size:14px; }
+    #chat { display:flex; flex-direction:column; gap:16px; }
+    .msg { display:flex; gap:10px; align-items:flex-start; }
+    .avatar { width:30px; height:30px; flex:0 0 30px; display:grid; place-items:center; border-radius:10px; background:var(--panel2); font-size:12px; font-weight:700; }
+    .msg.user .avatar { background:#393151; }
+    .bubble { min-width:0; white-space:pre-wrap; overflow-wrap:anywhere; padding:3px 0; }
+    .msg.user .bubble { background:var(--panel); border:1px solid var(--border); padding:11px 13px; border-radius:14px; }
+    .label { color:var(--muted); font-size:12px; margin-bottom:3px; }
+    .composer-wrap { position:sticky; bottom:0; padding:12px 14px calc(12px + env(safe-area-inset-bottom)); background:linear-gradient(transparent,var(--bg) 18%); }
+    .composer { display:flex; align-items:flex-end; gap:8px; border:1px solid #393d48; border-radius:18px; padding:8px; background:var(--panel); box-shadow:0 8px 35px #0004; }
+    textarea { flex:1; resize:none; max-height:150px; min-height:42px; padding:10px 8px; border:0; outline:0; background:transparent; color:var(--text); font:inherit; }
+    #send { background:var(--accent); color:#111018; border:0; font-weight:750; min-height:42px; }
+    .under { text-align:center; color:var(--muted); font-size:11px; padding-top:8px; }
+    #status { color:var(--muted); font-size:12px; padding:0 4px 8px; }
+    .settings { display:flex; gap:8px; align-items:center; }
+    select { max-width:120px; font-size:13px; }
+    .warning { background:#292319; border:1px solid #55452b; padding:10px 12px; border-radius:12px; color:#f2d7a3; font-size:13px; margin:0 0 16px; }
+    @media(min-width:650px) { main { padding:24px 24px 18px; } .composer-wrap { padding-left:24px; padding-right:24px; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">D</div>
+    <div class="brand"><strong>Dev AI</strong><small id="subtitle">Your personal AI · Browser mode</small></div>
+    <div class="settings">
+      <select id="lang" aria-label="Language">
+        <option value="both">HI + EN</option><option value="hi">हिन्दी</option><option value="en">English</option>
+      </select>
+      <button id="newChat" type="button" title="Start a new chat">＋</button>
+    </div>
+  </header>
+  <main>
+    <div id="notice" class="warning">First use needs an internet connection to download the AI model. After download, model availability depends on browser storage and device memory.</div>
+    <section id="welcome">
+      <h1>What can I help with?</h1>
+      <p>Ask in Hindi or English. Your messages are processed in this browser by the selected model.</p>
+      <div class="suggestions">
+        <button type="button" data-prompt="Explain photosynthesis in simple Hindi.">Explain a topic</button>
+        <button type="button" data-prompt="Give me 5 creative YouTube Shorts ideas for a gaming channel.">Brainstorm ideas</button>
+        <button type="button" data-prompt="Teach me basic HTML with a tiny example.">Learn coding</button>
+      </div>
+    </section>
+    <div id="status" role="status">AI model not loaded yet.</div>
+    <section id="chat" aria-live="polite"></section>
+  </main>
+  <div class="composer-wrap">
+    <form id="form" class="composer">
+      <textarea id="input" rows="1" placeholder="Message Dev AI…" aria-label="Message Dev AI"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+    <div class="under">Dev AI can make mistakes. Check important information.</div>
+  </div>
+</div>
+<script type="module">
+  import { pipeline, TextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+
+  const MODEL_ID = 'onnx-community/Qwen3-0.6B-Instruct-ONNX';
+  const $ = (id) => document.getElementById(id);
+  const chat = $('chat'), input = $('input'), form = $('form'), send = $('send'), status = $('status');
+  let generator = null, loading = false, busy = false;
+  const history = [];
+
+  const copy = {
+    both: { loading:'Loading the AI model… the first download may take a few minutes.', ready:'AI model ready. Ask me something!', fail:'Could not load the model. Check your connection, reload the page, or try a newer Chrome browser.', thinking:'Thinking…', loadfirst:'The model is still loading. Please wait a moment.', empty:'Write a message first.' },
+    hi: { loading:'AI मॉडल लोड हो रहा है… पहली बार डाउनलोड में कुछ मिनट लग सकते हैं।', ready:'AI मॉडल तैयार है। अपना सवाल पूछें!', fail:'मॉडल लोड नहीं हुआ। इंटरनेट जाँचें, पेज रीफ़्रेश करें या Chrome अपडेट करें।', thinking:'सोच रहा हूँ…', loadfirst:'मॉडल अभी लोड हो रहा है। कृपया प्रतीक्षा करें।', empty:'पहले अपना संदेश लिखें।' },
+    en: { loading:'Loading the AI model… the first download may take a few minutes.', ready:'AI model ready. Ask me something!', fail:'Could not load the model. Check your connection, reload the page, or try a newer Chrome browser.', thinking:'Thinking…', loadfirst:'The model is still loading. Please wait a moment.', empty:'Write a message first.' }
+  };
+  function words(key) { return copy[$('lang').value][key]; }
+  function setStatus(text) { status.textContent = text; }
+  function addMessage(role, text) {
+    $('welcome').hidden = true;
+    const row = document.createElement('div'); row.className = 'msg ' + role;
+    const avatar = document.createElement('div'); avatar.className = 'avatar'; avatar.textContent = role === 'user' ? 'YOU' : 'D';
+    const content = document.createElement('div'); content.style.minWidth = '0';
+    const label = document.createElement('div'); label.className = 'label'; label.textContent = role === 'user' ? 'You' : 'Dev AI';
+    const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = text;
+    content.append(label, bubble); row.append(avatar, content); chat.append(row);
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    return bubble;
+  }
+  async function loadModel() {
+    if (generator || loading) return;
+    loading = true; setStatus(words('loading'));
+    try {
+      // Prefer WebGPU when available; otherwise use the CPU/WASM path.
+      if (navigator.gpu) {
+        try {
+          generator = await pipeline('text-generation', MODEL_ID, { device: 'webgpu', dtype: 'q4f16' });
+        } catch (gpuError) {
+          console.warn('WebGPU load failed; trying CPU/WASM.', gpuError);
+          generator = await pipeline('text-generation', MODEL_ID, { dtype: 'q4' });
+        }
+      } else {
+        generator = await pipeline('text-generation', MODEL_ID, { dtype: 'q4' });
+      }
+      setStatus(words('ready'));
+      $('notice').hidden = true;
+    } catch (e) {
+      console.error(e); setStatus(words('fail'));
+    } finally { loading = false; }
+  }
+  async function sendMessage(text) {
+    text = text.trim();
+    if (!text) { setStatus(words('empty')); return; }
+    if (busy) return;
+    if (!generator) {
+      if (loading) { setStatus(words('loadfirst')); return; }
+      await loadModel();
+      if (!generator) return;
+    }
+    busy = true; send.disabled = true;
+    addMessage('user', text);
+    history.push({ role:'user', content:text });
+    const outputBubble = addMessage('assistant', '');
+    setStatus(words('thinking'));
+    try {
+      // Keep a short context to reduce memory use on mobile.
+      const messages = [
+        { role:'system', content:'You are Dev AI, a friendly helpful assistant. Answer in the language the user uses. You can understand Hindi and English, but this small model may be less reliable in Hindi. Be honest when unsure. Keep answers concise.' },
+        ...history.slice(-6)
+      ];
+      const result = await generator(messages, { max_new_tokens: 180, do_sample: true, temperature: 0.7 });
+      const generated = result?.[0]?.generated_text;
+      let answer = '';
+      if (Array.isArray(generated)) {
+        const last = generated[generated.length - 1];
+        answer = typeof last === 'string' ? last : (last?.content || '');
+      } else if (typeof generated === 'string') {
+        answer = generated;
+      }
+      answer = answer.trim() || 'Sorry, I could not produce a response. Please try again.';
+      outputBubble.textContent = answer;
+      history.push({ role:'assistant', content:answer });
+      setStatus(words('ready'));
+    } catch (e) {
+      console.error(e);
+      outputBubble.textContent = 'Generation failed on this device. Try a shorter prompt, close other tabs, or reload the page.';
+      setStatus('Generation error');
+    } finally { busy = false; send.disabled = false; input.focus(); }
+  }
+  form.addEventListener('submit', (e) => { e.preventDefault(); const text = input.value; input.value = ''; input.style.height = 'auto'; sendMessage(text); });
+  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight,150) + 'px'; });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  $('newChat').addEventListener('click', () => { chat.replaceChildren(); history.length = 0; $('welcome').hidden = false; setStatus(generator ? words('ready') : 'AI model not loaded yet.'); });
+  document.querySelectorAll('[data-prompt]').forEach(b => b.addEventListener('click', () => { input.value = b.dataset.prompt; input.focus(); }));
+  $('lang').addEventListener('change', () => { if (generator) setStatus(words('ready')); });
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.warn));
+  }
+  // Load on first page visit; user can start chatting once this completes.
+  loadModel();
+</script>
+</body>
+</html>
