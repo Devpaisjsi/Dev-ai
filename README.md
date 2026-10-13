@@ -1,217 +1,189 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#10121b">
+  <meta name="theme-color" content="#10101a">
   <title>Dev AI</title>
   <style>
     * { box-sizing: border-box; }
     body {
-      margin: 0; background: #10121b; color: #f5f5fa;
-      font-family: system-ui, sans-serif;
+      margin: 0; background: #10101a; color: #f7f7fb;
+      font-family: Arial, sans-serif; min-height: 100vh;
     }
     header {
-      padding: 18px; text-align: center;
-      border-bottom: 1px solid #303342;
+      padding: 18px; text-align: center; font-size: 24px;
+      font-weight: bold; color: #ff4141; border-bottom: 1px solid #303040;
     }
-    header h2 { margin: 0; color: #a99cff; }
     #status {
-      padding: 12px; text-align: center;
-      color: #c5c6d4; font-size: 14px;
-    }
-    main {
-      max-width: 700px; margin: auto; padding: 14px;
+      text-align: center; color: #c4c4d4; padding: 12px;
+      font-size: 13px;
     }
     #chat {
-      height: 58vh; min-height: 250px; overflow-y: auto;
-      border: 1px solid #303342; border-radius: 14px;
-      padding: 12px; background: #171a26;
+      max-width: 760px; margin: auto; padding: 14px;
+      padding-bottom: 125px;
     }
     .msg {
-      padding: 11px 13px; margin: 10px 0;
-      border-radius: 12px; white-space: pre-wrap;
-      overflow-wrap: anywhere; line-height: 1.5;
+      padding: 12px 14px; border-radius: 16px; margin: 10px 0;
+      white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5;
     }
-    .user { background: #37305d; margin-left: 12%; }
-    .bot { background: #252938; margin-right: 8%; }
-    #form { display: flex; gap: 8px; margin-top: 12px; }
+    .user { background: #762dff; margin-left: 12%; }
+    .ai { background: #242433; margin-right: 8%; }
+    #welcome { color: #bcbccc; text-align: center; margin-top: 50px; }
+    #controls {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 12px; background: #151521; border-top: 1px solid #303040;
+    }
+    .inputrow {
+      max-width: 760px; margin: auto; display: flex; gap: 8px;
+    }
     input {
-      flex: 1; min-width: 0; padding: 14px;
-      border: 1px solid #41445a; border-radius: 12px;
-      background: #1c2030; color: white; font-size: 16px;
+      min-width: 0; flex: 1; padding: 14px; border-radius: 14px;
+      border: 1px solid #44445a; background: #222231; color: white;
+      font-size: 16px; outline: none;
     }
     button {
-      border: 0; border-radius: 12px; padding: 12px 16px;
-      background: #8b79ff; color: #fff;
-      font-size: 15px; font-weight: 600;
+      padding: 12px 16px; border: 0; border-radius: 12px;
+      background: #ff4141; color: white; font-weight: bold;
     }
     button:disabled { opacity: .5; }
-    #retry { display: block; margin: 8px auto; }
-    .hint { color: #aeb0c1; font-size: 12px; text-align: center; }
+    #retry {
+      display: block; margin: 8px auto; background: #343447;
+    }
+    small { display: block; text-align: center; color: #a7a7b8; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <header>
-    <h2>✨ Dev AI</h2>
-    <div>Apna personal AI assistant</div>
-  </header>
-
-  <div id="status">AI library load ho rahi hai...</div>
-  <button id="retry" hidden>Try loading again</button>
-
-  <main>
-    <div id="chat">
-      <div class="msg bot">Namaste! Main Dev AI hoon. Model load hone ke baad mujhse baat karo.</div>
-    </div>
-    <form id="form">
-      <input id="question" placeholder="Message likho..." autocomplete="off">
-      <button id="send" type="submit" disabled>Send</button>
-    </form>
-    <p class="hint">Pehli baar model download hone mein samay lag sakta hai.</p>
+  <header>🔥 Dev AI</header>
+  <div id="status">AI model load ho raha hai…</div>
+  <button id="retry" hidden>Model dobara load karo</button>
+  <main id="chat">
+    <div id="welcome">Namaste! Main Dev AI hoon.<br>Model load hone ke baad apna sawal poochho.</div>
   </main>
+  <div id="controls">
+    <div class="inputrow">
+      <input id="prompt" placeholder="Yahan message likho…" autocomplete="off">
+      <button id="send" disabled>Send</button>
+    </div>
+    <small>AI ke jawab galat bhi ho sakte hain.</small>
+  </div>
 
   <script type="module">
-    const MODEL_ID = 'onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
+    const statusEl = document.getElementById("status");
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("prompt");
+    const send = document.getElementById("send");
+    const retry = document.getElementById("retry");
+    const welcome = document.getElementById("welcome");
 
-    const statusEl = document.querySelector('#status');
-    const chat = document.querySelector('#chat');
-    const form = document.querySelector('#form');
-    const input = document.querySelector('#question');
-    const send = document.querySelector('#send');
-    const retry = document.querySelector('#retry');
-
-    let pipeline;
-    let generator;
+    let generator = null;
     let busy = false;
 
-    function status(text) {
-      statusEl.textContent = text;
-    }
-
     function addMessage(text, who) {
-      const el = document.createElement('div');
-      el.className = 'msg ' + who;
-      el.textContent = text;
-      chat.appendChild(el);
-      chat.scrollTop = chat.scrollHeight;
-      return el;
+      welcome.hidden = true;
+      const div = document.createElement("div");
+      div.className = "msg " + who;
+      div.textContent = text;
+      chat.appendChild(div);
+      window.scrollTo(0, document.body.scrollHeight);
+      return div;
     }
 
     async function loadModel() {
-      send.disabled = true;
+      if (busy || generator) return;
+      busy = true;
       retry.hidden = true;
-      status('AI library load ho rahi hai...');
+      send.disabled = true;
+      statusEl.textContent = "AI library load ho rahi hai…";
 
       try {
-        if (!pipeline) {
-          const lib = await import(
-            'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2'
-          );
-          pipeline = lib.pipeline;
-          lib.env.useBrowserCache = true;
-          lib.env.allowLocalModels = false;
-        }
+        const { pipeline, env } = await import(
+          "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+        );
+        env.allowLocalModels = false;
 
-        status('AI model download/load ho raha hai. Internet chalu rakho...');
+        statusEl.textContent =
+          "AI model download ho raha hai. Pehli baar kuch minute lag sakte hain…";
 
-        try {
-          generator = await pipeline(
-            'text-generation',
-            MODEL_ID,
-            {
-              device: 'webgpu',
-              dtype: 'q4f16',
-              progress_callback: (p) => {
-                if (p.status === 'progress' &&
-                    Number.isFinite(p.progress)) {
-                  status('Model download: ' +
-                    Math.round(p.progress) + '%');
-                } else if (p.status === 'download') {
-                  status('Model ki file download ho rahi hai...');
-                } else if (p.status === 'ready') {
-                  status('Model ready ho raha hai...');
-                }
+        generator = await pipeline(
+          "text-generation",
+          "onnx-community/SmolLM2-135M-Instruct-ONNX",
+          {
+            dtype: "q4",
+            progress_callback: (p) => {
+              if (p && p.status === "progress" &&
+                  typeof p.progress === "number") {
+                statusEl.textContent =
+                  "Model download: " + Math.round(p.progress) + "%";
+              } else if (p && p.status === "downloading") {
+                statusEl.textContent = "AI model download ho raha hai…";
+              } else if (p && p.status === "ready") {
+                statusEl.textContent = "Model ready ho raha hai…";
               }
             }
-          );
-        } catch (gpuError) {
-          console.warn('WebGPU unavailable; trying CPU/WASM', gpuError);
-          generator = await pipeline(
-            'text-generation',
-            MODEL_ID,
-            {
-              device: 'wasm',
-              dtype: 'q4',
-              progress_callback: (p) => {
-                if (p.status === 'progress' &&
-                    Number.isFinite(p.progress)) {
-                  status('Model download: ' +
-                    Math.round(p.progress) + '%');
-                } else {
-                  status('CPU mode mein model load ho raha hai...');
-                }
-              }
-            }
-          );
-        }
+          }
+        );
 
-        status('✅ AI model ready! Apna message bhejo.');
+        statusEl.textContent = "✅ Dev AI ready hai! Message bhejo.";
         send.disabled = false;
       } catch (err) {
-        console.error('Dev AI model error:', err);
-        status('❌ Model load nahi hua: ' +
-          (err?.message || String(err)).slice(0, 180));
+        console.error(err);
+        generator = null;
+        statusEl.textContent =
+          "Model load nahi hua. Internet check karke dobara try karo.";
         retry.hidden = false;
+      } finally {
+        busy = false;
       }
     }
 
-    retry.addEventListener('click', loadModel);
+    async function sendMessage() {
+      const question = input.value.trim();
+      if (!question || !generator || busy) return;
 
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const prompt = input.value.trim();
-      if (!prompt || !generator || busy) return;
-
-      input.value = '';
-      addMessage(prompt, 'user');
-      const answerEl = addMessage('Soch raha hoon...', 'bot');
+      input.value = "";
+      addMessage(question, "user");
+      const answerBox = addMessage("Soch raha hoon…", "ai");
       busy = true;
       send.disabled = true;
 
       try {
         const result = await generator(
-          [{ role: 'user', content: prompt }],
-          {
-            max_new_tokens: 120,
-            do_sample: true,
-            temperature: 0.7,
-            repetition_penalty: 1.1
-          }
+          [
+            {
+              role: "system",
+              content: "You are Dev AI, a friendly assistant. Reply simply and helpfully. Reply in Hindi when the user writes in Hindi."
+            },
+            { role: "user", content: question }
+          ],
+          { max_new_tokens: 120, do_sample: false }
         );
 
         const output = result?.[0]?.generated_text;
-        let answer = '';
+        let answer = "";
 
         if (Array.isArray(output)) {
-          answer = output[output.length - 1]?.content || '';
-        } else if (typeof output === 'string') {
+          answer = output[output.length - 1]?.content || "";
+        } else if (typeof output === "string") {
           answer = output;
         }
 
-        answerEl.textContent = answer.trim() ||
-          'Jawab generate nahi hua. Dobara try karo.';
+        answerBox.textContent = answer.trim() || "Is baar jawab nahi mila. Dobara poochho.";
       } catch (err) {
         console.error(err);
-        answerEl.textContent =
-          'Jawab nahi bana. App refresh karke dobara try karo.';
+        answerBox.textContent = "Jawab nahi ban paya. Chhota sawal poochh kar try karo.";
       } finally {
         busy = false;
-        send.disabled = false;
-        chat.scrollTop = chat.scrollHeight;
+        send.disabled = !generator;
       }
+    }
+
+    send.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
     });
+    retry.addEventListener("click", loadModel);
 
     loadModel();
   </script>
