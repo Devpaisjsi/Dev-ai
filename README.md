@@ -9,7 +9,7 @@ A small, dark, Hindi/English browser AI assistant built with HTML, CSS, JavaScri
 - `icon.svg` — app icon
 
 ## Model
-Default: `onnx-community/Qwen3-0.6B-Instruct-ONNX`, loaded through Transformers.js. It tries WebGPU with 4-bit float16 weights when available, then falls back to CPU/WASM with 4-bit quantization. This is a compact model, not ChatGPT-level. Its model files can be large (potentially hundreds of MB or more), so use Wi-Fi for the first load and check free storage.
+Default: `const MODEL_ID = 'onnx-community/Qwen3-0.6B-ONNX';`, loaded through Transformers.js. It tries WebGPU with 4-bit float16 weights when available, then falls back to CPU/WASM with 4-bit quantization. This is a compact model, not ChatGPT-level. Its model files can be large (potentially hundreds of MB or more), so use Wi-Fi for the first load and check free storage.
 
 ## Run
 Serve these files over HTTPS or localhost. Opening `index.html` directly as a `file://` URL will not work reliably because ES modules and service workers require an appropriate origin.
